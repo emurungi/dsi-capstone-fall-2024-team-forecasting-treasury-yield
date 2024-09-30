@@ -1,13 +1,25 @@
 1. How was the mentor meeting? Was there a good discussion/Did you get your questions answered/requests responded to?
-    I believe the mentor meeting was good, it shed some more light on what question we were actually trying to answer but it also created more questions. We were able to get Professor Fox's initial write up which gave us more direction and had an additional meeting Monday
-    to answer some of our concerns.
+    I believe the mentor meeting was good, it shed some more light on what question we were actually trying to answer but it also created more questions on the feasability and process we should take. 
+    We were able to get Professor Fox's initial write up which gave us more direction and had an additional meeting Monday to answer some of our concerns.
 2. Do you have clear next steps?
+    Our next steps currently are to continue collecting data sources that may be beneficial to predicting 10 year treasury yields and testing theories on what makes up these yields. Although these next steps
+    are clear I think how to go about them is quite broad due to the nature of this project.
 3. Do you and your teammates know exactly what you'll be doing this week?
+    This week our plan was to get data loaded into R and start some initial data analysis.
 4. Any challenges or roadblocks?
+    I think the biggest challenge is knowing what data to use. There are so many things that can go into the 10 year treasury yields and so many different ideas on they're priced that makes it quite duanting, especially
+    with the goal of forecasting out 5 years it seems very challenging to try and predict regime shifts and recessions which affect these yields.
 5. Any questions or feedback? 
+    I think this initial data collection and data analysis will likely be the hardest part of this project since it almost feels like we will have to test out different economic theories.
 6. First meetings only: 
    1. Is the project plan over the semester clear? (Describe in the zoom check-in)
+        I believe so, the project plan is for us to forecast out the 10 year treasury yield over the next 5 years. With goals being initial data collection, data analysis, initial simple forecasts (maybe like arima or garch),
+        then test out more advanced forecasting methods.
    2. What’s your current knowledge level on this project’s theme on a scale of 1-5? (1 being completely new to the topic)
+        I would say 2 or 3. We both have some experience in finance but not much experience in the realm of macroeconomics and treasury yields. We've found some papers to read and are trying to gain more knowledge.
    3. Have you selected a caption? How are you discussing who’s learning or working on the different aspects and technologies of the project?
+        We haven't selected a captain but I'm not sure it's very necessary to have a captain because we're just a group of two (would it be ok to be co-captains?). We have a whatsapp chat to discuss meetings and what we plan on accomplishing. 
    4. Have you set up the Github repository yet?
+        We set up the class repository and will start adding code now.
    5. Are the mentors engaged and responsive?
+        Yes, the mentor is very responsive and he seems like he really wants to help, it's just a challenging project and he maybe doesn't have the most technical background but a strong economic/financial background.
