@@ -16,7 +16,7 @@
         I believe so, the project plan is for us to forecast out the 10 year treasury yield over the next 5 years. With goals being initial data collection, data analysis, initial simple forecasts (maybe like arima or garch),
         then test out more advanced forecasting methods.
    2. What’s your current knowledge level on this project’s theme on a scale of 1-5? (1 being completely new to the topic)
-        I would say 2 or 3. We both have some experience in finance but not much experience in the realm of macroeconomics and treasury yields. We've found some papers to read and are trying to gain more knowledge.
+        I would say 2. We both have some experience in finance but not much experience in the realm of macroeconomics and treasury yields. We've found some papers to read and are trying to gain more knowledge.
    3. Have you selected a caption? How are you discussing who’s learning or working on the different aspects and technologies of the project?
         We haven't selected a captain but I'm not sure it's very necessary to have a captain because we're just a group of two (would it be ok to be co-captains?). We have a whatsapp chat to discuss meetings and what we plan on accomplishing. 
    4. Have you set up the Github repository yet?
