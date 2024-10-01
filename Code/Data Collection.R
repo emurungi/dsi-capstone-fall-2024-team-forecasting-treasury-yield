@@ -1,0 +1,1 @@
+FRED_api_key <- '1e3261d006a3b1782545cc1281beb157'
