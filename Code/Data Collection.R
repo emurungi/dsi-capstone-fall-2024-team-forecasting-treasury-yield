@@ -47,7 +47,7 @@ data_list <- list(
   list(series_id = "RECPROUSM156N", col_name = "US_recession_probabilities"),
   list(series_id = "PINCOME", col_name = "personal_income"),
   list(series_id = "PCU44414441", col_name = "producer_price_index_building_materials&supplies"),
-  list(series_id = "ACMSNO", col_name = "manufacturs_new_orders_construction_materials&supplies"), #looks like it almost coincides with all drops in yield during recessions
+  list(series_id = "ACMSNO", col_name = "manufacturs_new_orders_construction_materials&supplies"),
   list(series_id = "IPB54100S", col_name = "industrial_production_construction_supplies"),
   list(series_id = "WPUSI012011", col_name = "producer_price_index_construction_materials"),
   list(series_id = "IB0000043Q086SBEA", col_name = "real_imports_industrial_supplies_materials"),
