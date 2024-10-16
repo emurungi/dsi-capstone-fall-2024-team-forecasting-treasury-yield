@@ -1,0 +1,19 @@
+1. How was the mentor meeting? Was there a good discussion/Did you get your questions answered/requests responded to?
+    This week we mainly just discussed some questions we had with our data. The mentor recommended working with quarterly or monthly data. When asking about how far back our data should go 
+    he added the idea that the economy may be changed and that maybe we're forced to look at a shorter time frame versus a larger one and recommended we do both to find out.
+
+2. What has been your individual contribution to the project this week?
+    This week I did our initial data analysis with what data we have collected and built our first two models.
+
+3. What has been the group’s overall status and contributions this week?
+    We met to work on the project yesterday and Emmanuel added CBO data to the repo and is going to add that to our FRED data in our data collection script. He is also working on collecting futures data from
+    Bloomberg to add as well but I believe is having some issues with that currently. This week I finished my portion of the data collection, analyzed the data we have, and created initial models with the data we have
+    from FRED. Once added to the dataframe of FRED data it should be easy for Emmanuels new data to be ingested into the "pipeline" for formatting, cleaning, analysis, and input into our models.
+
+4. Any challenges or roadblocks?
+    Right now my challenges are making our initial lasso model more generalizable as it is currently overfitting to the training data even with k-fold cross validation.
+    For Emmanuel I think his biggest challenge right now is getting all the historical data we would want for the futures data.
+
+5. Any questions or feedback? 
+    Right now my biggest question is since we are looking at monthly data as directed by our mentor, if the data is daily should we take the average for that month or just one point at the beginning
+    of each month
