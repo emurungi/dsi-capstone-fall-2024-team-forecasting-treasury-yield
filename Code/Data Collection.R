@@ -86,13 +86,17 @@ for (data in data_list) {
 #We'll start with data from 1985 only
 #Then we'll start with data from 2003
 
-metadata_1985 <- metadata %>% filter(observation_start <= as.Date("1985-01-01"))
+metadata_1985 <- metadata %>% filter(observation_start <= as.Date("1985-01-01")
+                                     & observation_end <= as.Date("2025-01-01") 
+                                     & observation_end >= as.Date("2024-01-01"))
 
-metadata_2003 <- metadata %>% filter(observation_start <= as.Date("2003-01-01"))
+metadata_2003 <- metadata %>% filter(observation_start <= as.Date("2003-01-01") 
+                                     & observation_end <= as.Date("2025-01-01") 
+                                     & observation_end >= as.Date("2024-01-01"))
 
-fred_data_1985 <- tenyr_yield
+data_1985 <- tenyr_yield
 
-fred_data_2003 <- tenyr_yield
+data_2003 <- tenyr_yield
 
 for (data in data_list) {
   
@@ -103,7 +107,7 @@ for (data in data_list) {
     curr_data <- curr_data %>% rename(!!data$col_name := value) %>% select(date, !!data$col_name)
     
     #Join data with already collected data
-    fred_data_1985 <- reduce(list(fred_data_1985, curr_data), full_join, by = "date")
+    data_1985 <- reduce(list(data_1985, curr_data), full_join, by = "date")
   }
   
   if(data$series_id %in% metadata_2003$id){
@@ -113,39 +117,14 @@ for (data in data_list) {
     curr_data <- curr_data %>% rename(!!data$col_name := value) %>% select(date, !!data$col_name)
     
     #Join data with already collected data
-    fred_data_2003 <- reduce(list(fred_data_2003, curr_data), full_join, by = "date")
+    data_2003 <- reduce(list(data_2003, curr_data), full_join, by = "date")
   }
 }
 
 #Order data by date
-fred_data_1985 <- fred_data_1985 %>% filter(fred_data_1985$date >= "1985-01-01") %>% arrange(date)
+#Will look at 2003 onward and 1985 onward
+data_1985 <- data_1985 %>% filter(data_1985$date >= "1985-01-01") %>% arrange(date)
 
-fred_data_2003 <- fred_data_2003 %>% filter(fred_data_2003$date >= "2003-01-01") %>% arrange(date) 
+data_2003 <- data_2003 %>% filter(data_2003$date >= "2002-12-31") %>% arrange(date)
 
-df_test <- fred_data_2003 %>% fill(everything(), .direction = "up")
-
-df_test <- df_test %>%
-  mutate(month = floor_date(date, "month")) %>%
-  group_by(month) %>%
-  summarise(across(-date, ~mean(.x, na.rm = TRUE)))
-
-
-#Starting with monthly data where we back fill quarterly data and average daily data
-
-#monthly data, and daily data.
-
-#Plan
-#Train up to 2015 to predict 2020 to 2024 
-
-ggplot(df_test, aes(x = month, y = tenyr_yield)) +
-  geom_line() +
-  xlim(c(as.Date("2003-01-01"), as.Date("2024-12-31")))
-
-#2003 mainly checking if the asset securities held outright is important or not
-
-#Got way too much data and some will definitely be excluded from being correlated, but some we might
-#want to initially exclude based on it's first date (i.e. exclude those that don't have enough data like must be prior to 2000)
-
-all_dates <- data.frame(date = seq(from = min(fred_data$date), to = max(fred_data$date), by = "day"))
-
-fred_data_all_dates <- all_dates %>% left_join(fred_data, by = "date")
+save(data_1985, data_2003, tenyr_yield, file = "Data/dataframes.RData")
