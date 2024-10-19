@@ -1,10 +1,12 @@
 install.packages('fredr')
 
 library(fredr)
+library(openxlsx)
 library(dplyr)
 library(tidyr)
 library(purrr)
 library(lubridate)
+library(stringr)
 library(ggplot2)
 
 #API key to get data from FRED
@@ -120,6 +122,59 @@ for (data in data_list) {
     data_2003 <- reduce(list(data_2003, curr_data), full_join, by = "date")
   }
 }
+
+# CBO Data - first run the Python Script in Data/cbo-eval-projections/src/main.py
+x_vec <- c('revenue', 'outlay', 'deficit', 'debt') 
+rev_exps_outlay_projs <- lapply(x_vec[1:4], 
+                                FUN = function(x){
+                                  read.csv(paste0('Data/cbo-eval-projections/output_data/', x, '_projection_errors.csv') ) %>% 
+                                    tibble() %>% 
+                                    filter(category=="Total") %>% 
+                                    select(component, category, fiscal_year=projected_fiscal_year, actual_value, GDP, projected_year_number, value) %>% 
+                                    filter(fiscal_year > ((.) %>% group_by(component, category, fiscal_year, actual_value, GDP) %>% 
+                                                            summarise(max_proj_years = max(projected_year_number)) %>% ungroup() %>% 
+                                                            filter(max_proj_years<5) %>% pull(fiscal_year) %>% max() )) %>% 
+                                    filter(projected_year_number <= 5) %>% 
+                                    mutate(projected_year_number = paste0('projection_', projected_year_number, '_yrs_before')) %>% 
+                                    pivot_wider(names_from = 'projected_year_number', values_from='value')
+                                } ) %>% bind_rows()
+# Hair Line Plots of CBO Data
+rev_exps_outlay_projs %>% 
+  mutate('projection_0_yrs_before' = actual_value) %>% 
+  pivot_longer(cols = paste0('projection_', seq(0,5), '_yrs_before')) %>% 
+  mutate(fiscal_year_end_date = as.Date(sprintf("%s-12-31", fiscal_year)), .before=actual_value ) %>% 
+  mutate(projection_date_approx = as.Date(fiscal_year_end_date) %m-% months((as.numeric(substr(name,12,12)))*12) ) %>% 
+  # pivot_wider(id_cols = c("component", "category", "fiscal_year_end_date", "actual_value", "GDP"), names_from="name",values_from = "value")
+  # filter(component=="revenue") %>% 
+  ggplot() +
+  geom_line(aes(x=projection_date_approx, group = fiscal_year, y = value), size = 0.5, alpha = 0.5) +  # Projection lines
+  geom_line(aes(x=fiscal_year_end_date, y = actual_value), color = "black", size = 1.0) +  # Actual value line
+  labs(x = "Fiscal Year", y = "Value (in Billion $)") +
+  theme_minimal() +
+  facet_wrap(~component, scales="free_y")
+
+# Treasury Quarterly Refunding https://home.treasury.gov/policy-issues/financing-the-government/quarterly-refunding/most-recent-quarterly-refunding-documents 
+GET("https://home.treasury.gov/system/files/221/2024-4th-Quarter.xls"
+    , write_disk(tf <- tempfile(fileext = ".xls")))
+df <- read_excel(tf, sheet=4)
+treasury_securities_outstanding <- read_excel(tf, sheet=4) %>% tibble()  
+
+treasury_securities_by_maturity <- bind_cols(treasury_securities_outstanding %>% select(1) %>% slice(4:nrow(treasury_securities_outstanding)) %>% 
+                                               set_names("year"),
+                                             treasury_securities_outstanding %>% select(2:ncol(treasury_securities_outstanding)) %>% 
+                                               janitor::row_to_names(row_number = 3, remove_rows_above = TRUE) %>% 
+                                               select(-contains("%")) %>% 
+                                               janitor::clean_names() %>% 
+                                               rename(x1_year_or_less = one_year_or_less, total_treasuries_outstanding = total_outstanding_billions) %>% 
+                                               rename_with(~ str_remove(., "^x_?")) %>%   # Remove 'x' or 'x_' prefixes
+                                               rename_with(~ paste0("treasury_outstanding_maturities_", .), .cols = -c(end_of_month, total_treasuries_outstanding, average_length_months)) 
+) %>% 
+  mutate(across(-c(year, end_of_month), ~ as.numeric(.))) %>% 
+  mutate(end_of_month_date = ymd(paste(year, end_of_month, "01")) %>% 
+           ceiling_date(unit = "month") - days(1), 
+         .after="end_of_month") %>% select(-c("year","end_of_month"))
+
+data_1985 <- data_1985 %>% left_join(treasury_securities_by_maturity, by=c("date"="end_of_month_date"))
 
 #Order data by date
 #Will look at 2003 onward and 1985 onward
