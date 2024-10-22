@@ -69,6 +69,14 @@ merged_data <- X %>% inner_join(monthly_yield, by = c("future_date" = "month"))
 merged_data <- merged_data[, -which(names(merged_data) == "future_date")]
 
 #we'll do a 75-25 train-test split for this
+
+#This train test split is incorrect
+#Should do more like a window where we take a number of points and validate on the next point
+#Called is next step ahead cross validation
+
+#Also talked about what we should use as our evaluation metrics
+#Liked using R squared and RMSE
+
 train_size <- round(nrow(merged_data) * 0.75)
 
 train_data <- merged_data[1:train_size, ]
@@ -185,4 +193,12 @@ ggplot(results, aes(x = date + years(5))) +
 #Training this way just favors a lower and lower lambda
 #Want a validation set where we train on the training data and then
 #minimize the loss/error on the validation set
+
+#Does this have data leakage? It probably does because it includes the 10 year yield
+
+
+#Maybe use a smaller time frame like 1 year or two years to see if this model has predictive value in short
+#term since we're testing on a period that is drastically different from training data
+#But can't include this covid shock in training data because it is within the last 5 years
+
 

@@ -1,6 +1,8 @@
 load("Data/dataframes.RData")
 
 
+#Maybe add some more plots of data (i.e. trend decomposition etc.)
+
 #Starting with monthly data where we forward fill quarterly data and average daily data
 monthly_2003 <- data_2003 %>% fill(everything(), .direction = "down") %>% filter(data_2003$date >= "2003-01-01")
 
