@@ -21,6 +21,7 @@ tenyr_yield <- fredr(
 
 tenyr_yield <- tenyr_yield %>% rename(tenyr_yield = value) %>% select(date, tenyr_yield)
 
+
 metadata <- fredr_series(series_id = "DGS10")
 metadata <- metadata[, !(names(metadata) %in% c('notes'))]
 

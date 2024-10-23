@@ -1,5 +1,17 @@
 load("Data/dataframes.RData")
 
+#Feature engineering
+yield_features <- tenyr_yield %>% mutate(month = floor_date(date, "month"))
+
+yield_features <- yield_features %>% group_by(month) %>%
+  summarise(
+    yield_stdev = sd(tenyr_yield, na.rm = TRUE),
+    max_yield = max(tenyr_yield, na.rm = TRUE),
+    min_yield = min(tenyr_yield, na.rm = TRUE),
+    start_yield = first(tenyr_yield[!is.na(tenyr_yield)]),
+    end_yield = last(tenyr_yield[!is.na(tenyr_yield)])
+  )
+
 
 #Maybe add some more plots of data (i.e. trend decomposition etc.)
 
@@ -10,6 +22,8 @@ monthly_2003 <- monthly_2003 %>%
   mutate(month = floor_date(date, "month")) %>%
   group_by(month) %>%
   summarise(across(-date, ~mean(.x, na.rm = TRUE)))
+
+monthly_2003 <- merge(monthly_2003, yield_features)
 
 #The monthly average captures a majority of the variation in the 10 year yield
 ggplot() +
@@ -66,7 +80,80 @@ monthly_yield <- monthly_yield %>%
   group_by(month) %>%
   summarise(across(-date, ~mean(.x, na.rm = TRUE)))
 
-save(monthly_2003, monthly_yield, file = "Data/cleaned_monthly_data.RData")
+
+
+
+
+monthly_1985 <- data_1985 %>% fill(everything(), .direction = "down") %>% filter(data_1985$date >= "1985-01-01")
+
+monthly_1985 <- monthly_1985 %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month) %>%
+  summarise(across(-date, ~mean(.x, na.rm = TRUE)))
+
+monthly_1985 <- merge(monthly_1985, yield_features)
+
+#The monthly average captures a majority of the variation in the 10 year yield
+ggplot() +
+  geom_line(data = monthly_1985, aes(x = month, y = tenyr_yield), color = "blue") +
+  geom_line(data = tenyr_yield, aes(x = date, y = tenyr_yield), color = "red", alpha = 0.5) +
+  xlim(c(as.Date("1985-01-01"), as.Date("2024-12-31")))
+
+#remove date and y-variable for correlation testing
+numeric_data <- monthly_1985[, sapply(monthly_1985, is.numeric) & names(monthly_1985) != "tenyr_yield"]
+
+#Make the data percent changes to test correlation
+percent_change <- function(x) c(NA, diff(x) / head(x + 1e-10, -1))
+change_data <- as.data.frame(lapply(numeric_data, percent_change))
+change_data <- change_data[-1, ]
+
+# Calculate the correlation matrix
+correlation_matrix_1985 <- cor(change_data, use = "complete.obs")
+cor_df_1985 <- as.data.frame(as.table(correlation_matrix_1985))
+
+#Define high correlation as above 0.75, view and remove highly correlated values
+high_corr <- subset(cor_df_1985, abs(Freq) > 0.7 & Var1 != Var2)
+
+#Based on high correlations we remove GDP, GNP, X5yr_expected_inflation, X30yr_expected_inflation, PCE_price_index,
+#X5yr_yield, X7yr_yield, industrial_production_business_equipment, total_nonfarm_employees, velocity_of_m2_money_stock
+# and unemployment_rate
+
+# List of variables to remove
+remove_vars <- c("GDP", "GNP", "X5yr_expected_inflation", "X30yr_expected_inflation", "PCE_price_index", 
+                 "X5yr_yield", "X7yr_yield", "industrial_production_business_equipment", 
+                 "total_nonfarm_employees", "velocity_of_m2_money_stock", "unemployment_rate",
+                 "5yr_yield", "7yr_yield", "30yr_expected_inflation", "5yr_expected_inflation")
+
+# Subset the data to exclude these variables
+test_change_data <- change_data[, !(names(change_data) %in% remove_vars)]
+
+#testing new correlation to make sure the change in variables over time are no longer correlated
+cor_matrix <- cor(test_change_data, use = "complete.obs")
+cor_df <- as.data.frame(as.table(cor_matrix))
+high_corr <- subset(cor_df, abs(Freq) > 0.7 & Var1 != Var2)
+
+#Number of pairs with correlation above 0.7 after removal
+print(nrow(high_corr))
+
+
+monthly_1985 <- monthly_1985[, !(names(monthly_1985) %in% remove_vars)]
+
+
+
+monthly_yield <- tenyr_yield %>% complete(date = seq(min(date), max(date), by = "day")) %>% fill(everything(), .direction = "down")
+
+monthly_yield <- monthly_yield %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month) %>%
+  summarise(across(-date, ~mean(.x, na.rm = TRUE)))
+
+
+
+
+save(monthly_2003, monthly_1985, monthly_yield, file = "Data/cleaned_monthly_data.RData")
+
+
+
 
 
 data <- monthly_2003[, c("month", "tenyr_yield")]

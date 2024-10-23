@@ -1,6 +1,13 @@
+set.seed(37826)
+
 load("Data/cleaned_monthly_data.RData")
 
 library(forecast)
+library(Metrics)
+library(caret)
+library(rsample)
+library(caret)
+library(MLmetrics)
 
 
 #####Basic ARIMA####
@@ -25,10 +32,10 @@ plot(arima_forecast, main = "ARIMA Forecast vs Actuals")
 lines(test_data, col = 'red')
 
 # Calculate accuracy metrics
+#INCORRECT FIX THIS
 accuracy(arima_forecast, test_data)
 
 
-# Assuming tenyr_yield_ts is your time series data
 start_date <- c(2015, 1)  # January 2015
 end_date <- c(2019, 12)   # December 2019 (5 years back from 2024 end)
 forecast_horizon <- 60    # 5 years ahead, assuming monthly data
@@ -56,8 +63,9 @@ for (i in names(rolling_forecasts)) {
 }
 
 
-####LASSO####
-library(glmnet)
+####Naive LASSO####
+
+#Mainly for feature selection
 
 
 X <- monthly_2003[, names(monthly_2003) != "tenyr_yield"]
@@ -113,17 +121,15 @@ ggplot(results, aes(x = date + years(5))) +
   scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
   theme_minimal()
 
-library(Metrics)
-library(caret)
 
 train_preds <- predict(lasso_model, s = best_lambda, newx = X_train)
 
-train_rmse <- rmse(y_train, train_preds)
-train_mape <- mape(y_train, train_preds)
+train_rmse <- RMSE(y_train, train_preds)
+train_mape <- MAPE(y_train, train_preds)
 train_r2 <- R2(train_preds, y_train)
 
-test_rmse <- rmse(y_test, test_preds)
-test_mape <- mape(y_test, test_preds)
+test_rmse <- RMSE(y_test, test_preds)
+test_mape <- MAPE(y_test, test_preds)
 test_r2 <- R2(test_preds, y_test)
 
 print(paste("Train RMSE:", train_rmse))
@@ -134,71 +140,316 @@ print(paste("Test MAPE:", test_mape))
 print(paste("Test R-Squared:", test_r2))
 
 
-# Combine the actual and predicted values
-full_data <- data.frame(
-  date = c(train_data$month, test_data$month),
-  actual = c(y_train, y_test),
-  predicted = c(train_preds, test_preds)
+
+
+####LASSO Using time-series cross validation####
+#With expanding window#
+
+monthly_2003$yield_5yr_ahead <- lead(monthly_2003$tenyr_yield, 60)
+
+monthly_2003 <- na.omit(monthly_2003)
+
+cv_splits <- rolling_origin(data = monthly_2003, initial = 60, assess = 61, cumulative = TRUE)
+
+all_preds <- c()
+all_actuals <- c()
+all_lambdas <- c()
+
+for (split in cv_splits$splits) {
+  train_data <- analysis(split)
+  test_data <- assessment(split)
+  
+  #Change test_data so it's only the last n points 
+  #(i.e. we want to try and predict after our test data otherwise
+  #it will learn the future trend from training data)
+  test_data <- tail(test_data, n=1)
+  
+  X_train <- as.matrix(train_data[, -which(names(train_data) %in% c("month", "yield_5yr_ahead"))])
+  y_train <- train_data$yield_5yr_ahead
+  
+  X_test <- as.matrix(test_data[, -which(names(test_data) %in% c("month", "yield_5yr_ahead"))])
+  y_test <- test_data$yield_5yr_ahead
+  
+  lasso_model <- cv.glmnet(X_train, y_train, alpha = 1)
+  
+  preds <- predict(lasso_model, newx = X_test, s = "lambda.min")
+  
+  best_lambda <- lasso_model$lambda.min
+  
+  all_preds <- c(all_preds, preds)
+  
+  all_actuals <- c(all_actuals, y_test)
+  
+  all_lambdas <- c(all_lambdas, best_lambda)
+}
+
+results <- data.frame(
+  month = monthly_2003$month[121:202] + years(5), 
+  actual = all_actuals,
+  predicted = all_preds
 )
-full_data$date <- full_data$date + years(5)
 
-ggplot() + 
-  geom_line(data = monthly_yield, aes(x = month, y = tenyr_yield, color = "Actual")) + 
-  geom_line(data = full_data, aes(x = date, y = predicted, color = "Predicted"), linetype = "dashed") + 
-  labs(title = "Actual vs Predicted Ten-Year Yield",
-       x = "Date",
-       y = "Ten-Year Yield",
-       color = "Legend") + 
-  scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) + 
-  theme_minimal()
-
-
-ggplot(full_data, aes(x = date)) +
+ggplot(results, aes(x = month)) +
   geom_line(aes(y = actual, color = "Actual")) +
-  geom_line(aes(y = predicted, color = "Predicted"), linetype = "dashed") +
-  geom_vline(xintercept = as.numeric(as.Date("2020-09-01")), linetype = "dashed", color = "black")
-  labs(title = "Actual vs Predicted Ten-Year Yield",
-       x = "Date",
-       y = "Ten-Year Yield",
-       color = "Legend") +
+  geom_line(aes(y = predicted, color = "Predicted")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
   scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
   theme_minimal()
 
-  
 
-####Fine-Tuning LASSO####
-  
-new_lasso_model <- cv.glmnet(X_train, y_train, alpha = 1, lambda = seq(0.015, 10, length = 100), nfolds = 10)
-best_lambda <- new_lasso_model$lambda.min
-  
-coef_matrix <- coef(new_lasso_model, s = best_lambda)
-coef_df <- as.data.frame(as.matrix(coef_matrix))
-coef_df <- data.frame(feature = rownames(coef_df), coefficient = coef_df[, 1])
-  
-test_preds <- predict(new_lasso_model, s = best_lambda, newx = X_test)
-  
-results <- data.frame(date = test_data$month, actual = y_test, predicted = test_preds)
-  
+print(paste("Total RMSE: ", RMSE(all_preds, all_actuals)))
+print(paste("Total MAPE: ", MAPE(all_preds, all_actuals) * 100, "%"))
+print(paste("Total R-Squared: ", R2(all_preds, all_actuals)))
 
-ggplot(results, aes(x = date + years(5))) +
+pre_2021 <- results %>% filter(month < as.Date('2021-01-01'))
+
+print(paste("Total RMSE: ", RMSE(pre_2021$predicted, pre_2021$actual)))
+print(paste("Total MAPE: ", MAPE(pre_2021$predicted, pre_2021$actual) * 100, "%"))
+print(paste("Total R-Squared: ", R2(pre_2021$predicted, pre_2021$actual)))
+
+
+ggplot() +
+  geom_line(data = results, aes(x = month, y = predicted, color = "Predicted")) +
+  geom_line(data = monthly_yield, aes(x = month, y = tenyr_yield, color = "Actual")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
+  scale_color_manual(values = c("Predicted" = "red", "Actual" = "black")) +
+  xlim(c(as.Date('2003-01-01'), as.Date('2025-01-01'))) +
+  theme_minimal()
+
+####LASSO Using time-series cross validation####
+#With rolling window# (same window size)
+
+
+cv_splits <- rolling_origin(data = monthly_2003, initial = 48, assess = 61, cumulative = FALSE)
+
+all_preds <- c()
+all_actuals <- c()
+all_lambdas <- c()
+
+for (split in cv_splits$splits) {
+  train_data <- analysis(split)
+  test_data <- assessment(split)
+  
+  test_data <- tail(test_data, n=1)
+  
+  X_train <- as.matrix(train_data[, -which(names(train_data) %in% c("month", "yield_5yr_ahead"))])
+  y_train <- train_data$yield_5yr_ahead
+  
+  X_test <- as.matrix(test_data[, -which(names(test_data) %in% c("month", "yield_5yr_ahead"))])
+  y_test <- test_data$yield_5yr_ahead
+  
+  lasso_model <- cv.glmnet(X_train, y_train, alpha = 1)
+  
+  preds <- predict(lasso_model, newx = X_test, s = "lambda.min")
+  
+  best_lambda <- lasso_model$lambda.min
+  
+  all_preds <- c(all_preds, preds)
+  
+  all_actuals <- c(all_actuals, y_test)
+  
+  all_lambdas <- c(all_lambdas, best_lambda)
+}
+
+results <- data.frame(
+  month = monthly_2003$month[109:202] + years(5),
+  actual = all_actuals,
+  predicted = all_preds
+)
+
+ggplot(results, aes(x = month)) +
   geom_line(aes(y = actual, color = "Actual")) +
-  geom_line(aes(y = s1, color = "Predicted")) +
-  labs(title = "Predicted vs Actual Ten-Year Yield",
-       x = "Date",
-       y = "Ten-Year Yield",
-       color = "Legend") +
+  geom_line(aes(y = predicted, color = "Predicted")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
   scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
   theme_minimal()
 
-#Training this way just favors a lower and lower lambda
-#Want a validation set where we train on the training data and then
-#minimize the loss/error on the validation set
 
-#Does this have data leakage? It probably does because it includes the 10 year yield
+print(paste("Total RMSE: ", RMSE(all_preds, all_actuals)))
+print(paste("Total MAPE: ", MAPE(all_preds, all_actuals) * 100, "%"))
+print(paste("Total R-Squared: ", R2(all_preds, all_actuals)))
+
+post_2021 <- results %>% filter(month >= as.Date('2021-01-01'))
+
+print(paste("Total RMSE: ", RMSE(post_2021$predicted, post_2021$actual)))
+print(paste("Total MAPE: ", MAPE(post_2021$predicted, post_2021$actual) * 100, "%"))
+print(paste("Total R-Squared: ", R2(post_2021$predicted, post_2021$actual)))
+
+#By far the best R-squared with window at 48
+#Best MAPE and RMSE at window with 60
+#This means this model is able to explain the variance the best but 
+#highly sensitive to outliers and we might want to try and reduce outliers
+#Will see if standardizing the data has any impact
 
 
-#Maybe use a smaller time frame like 1 year or two years to see if this model has predictive value in short
-#term since we're testing on a period that is drastically different from training data
-#But can't include this covid shock in training data because it is within the last 5 years
+
+
+
+
+ggplot() +
+  geom_line(data = results, aes(x = month, y = predicted, color = "Predicted")) +
+  geom_line(data = monthly_yield, aes(x = month, y = tenyr_yield, color = "Actual")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
+  scale_color_manual(values = c("Predicted" = "red", "Actual" = "black")) +
+  xlim(c(as.Date('2003-01-01'), as.Date('2025-01-01'))) +
+  theme_minimal()
+
+#tried standardizing, didn't help#
+
+
+
+
+
+
+
+####LASSO Using time-series cross validation####
+#With expanding window#
+
+monthly_1985$yield_5yr_ahead <- lead(monthly_1985$tenyr_yield, 60)
+
+monthly_1985 <- na.omit(monthly_1985)
+
+library(rsample)
+library(caret)
+library(MLmetrics)
+
+cv_splits <- rolling_origin(data = monthly_1985, initial = 60, assess = 61, cumulative = TRUE)
+
+all_preds <- c()
+all_actuals <- c()
+all_lambdas <- c()
+
+for (split in cv_splits$splits) {
+  train_data <- analysis(split)
+  test_data <- assessment(split)
+  
+  #Change test_data so it's only the last n points 
+  #(i.e. we want to try and predict after our test data otherwise
+  #it will learn the future trend from training data)
+  test_data <- tail(test_data, n=1)
+  
+  X_train <- as.matrix(train_data[, -which(names(train_data) %in% c("month", "yield_5yr_ahead"))])
+  y_train <- train_data$yield_5yr_ahead
+  
+  X_test <- as.matrix(test_data[, -which(names(test_data) %in% c("month", "yield_5yr_ahead"))])
+  y_test <- test_data$yield_5yr_ahead
+  
+  lasso_model <- cv.glmnet(X_train, y_train, alpha = 1)
+  
+  preds <- predict(lasso_model, newx = X_test, s = "lambda.min")
+  
+  best_lambda <- lasso_model$lambda.min
+  
+  all_preds <- c(all_preds, preds)
+  
+  all_actuals <- c(all_actuals, y_test)
+  
+  all_lambdas <- c(all_lambdas, best_lambda)
+}
+
+results <- data.frame(
+  month = monthly_1985$month[121:418] + years(5),
+  actual = all_actuals,
+  predicted = all_preds
+)
+
+ggplot(results, aes(x = month)) +
+  geom_line(aes(y = actual, color = "Actual")) +
+  geom_line(aes(y = predicted, color = "Predicted")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
+  scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
+  theme_minimal()
+
+
+print(paste("Total RMSE: ", RMSE(all_preds, all_actuals)))
+print(paste("Total MAPE: ", MAPE(all_preds, all_actuals) * 100, "%"))
+print(paste("Total R-Squared: ", R2(all_preds, all_actuals)))
+
+
+ggplot() +
+  geom_line(data = results, aes(x = month, y = predicted, color = "Predicted")) +
+  geom_line(data = monthly_yield, aes(x = month, y = tenyr_yield, color = "Actual")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
+  scale_color_manual(values = c("Predicted" = "red", "Actual" = "black")) +
+  xlim(c(as.Date('1985-01-01'), as.Date('2025-01-01'))) +
+  theme_minimal()
+
+
+
+####LASSO Using time-series cross validation####
+#With rolling window# (same window size)
+
+
+cv_splits <- rolling_origin(data = monthly_1985, initial = 48, assess = 61, cumulative = FALSE)
+
+all_preds <- c()
+all_actuals <- c()
+all_lambdas <- c()
+
+for (split in cv_splits$splits) {
+  train_data <- analysis(split)
+  test_data <- assessment(split)
+  
+  test_data <- tail(test_data, n=1)
+  
+  X_train <- as.matrix(train_data[, -which(names(train_data) %in% c("month", "yield_5yr_ahead"))])
+  y_train <- train_data$yield_5yr_ahead
+  
+  X_test <- as.matrix(test_data[, -which(names(test_data) %in% c("month", "yield_5yr_ahead"))])
+  y_test <- test_data$yield_5yr_ahead
+  
+  lasso_model <- cv.glmnet(X_train, y_train, alpha = 1)
+  
+  preds <- predict(lasso_model, newx = X_test, s = "lambda.min")
+  
+  best_lambda <- lasso_model$lambda.min
+  
+  all_preds <- c(all_preds, preds)
+  
+  all_actuals <- c(all_actuals, y_test)
+  
+  all_lambdas <- c(all_lambdas, best_lambda)
+}
+
+results <- data.frame(
+  month = monthly_1985$month[109:418] + years(5),
+  actual = all_actuals,
+  predicted = all_preds
+)
+
+ggplot(results, aes(x = month)) +
+  geom_line(aes(y = actual, color = "Actual")) +
+  geom_line(aes(y = predicted, color = "Predicted")) +
+  labs(title = "Actual vs Predicted Yields Over Time",
+       x = "Month",
+       y = "Yield") +
+  scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
+  theme_minimal()
+
+
+print(paste("Total RMSE: ", RMSE(all_preds, all_actuals)))
+print(paste("Total MAPE: ", MAPE(all_preds, all_actuals) * 100, "%"))
+print(paste("Total R-Squared: ", R2(all_preds, all_actuals)))
+
+post_2021 <- results %>% filter(month >= as.Date('2021-01-01'))
+
+print(paste("Total RMSE: ", RMSE(post_2021$predicted, post_2021$actual)))
+print(paste("Total MAPE: ", MAPE(post_2021$predicted, post_2021$actual) * 100, "%"))
+print(paste("Total R-Squared: ", R2(post_2021$predicted, post_2021$actual)))
+
+
+
 
 
