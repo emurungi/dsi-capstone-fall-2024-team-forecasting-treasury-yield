@@ -2,13 +2,17 @@ set.seed(37826)
 
 load("Data/cleaned_monthly_data.RData")
 
+library(dplyr)
 library(forecast)
+library(glmnet)
+library(lubridate)
 library(Metrics)
 library(caret)
 library(rsample)
 library(caret)
 library(MLmetrics)
-
+library(vars)
+library(MTS)
 
 #####Basic ARIMA####
 
@@ -68,7 +72,7 @@ for (i in names(rolling_forecasts)) {
 #Mainly for feature selection
 
 
-X <- monthly_2003[, names(monthly_2003) != "tenyr_yield"]
+X <- monthly_1985[, names(monthly_1985) != "tenyr_yield"]
 
 X$future_date <- X$month + years(5)
 
@@ -97,7 +101,7 @@ y_test <- test_data$tenyr_yield
 X_test <- as.matrix(test_data[, -which(names(test_data) %in% c("month", "tenyr_yield"))])
 
 
-lasso_model <- cv.glmnet(X_train, y_train, aplha = 1)
+lasso_model <- cv.glmnet(X_train, y_train, aplha = 1, lambda = seq(0.01, 1, by = 0.01))
 best_lambda <- lasso_model$lambda.min
 
 coef_matrix <- coef(lasso_model, s = best_lambda)
@@ -108,7 +112,7 @@ coef_df <- data.frame(feature = rownames(coef_df), coefficient = coef_df[, 1])
 test_preds <- predict(lasso_model, s = best_lambda, newx = X_test)
 
 # Compare with actual test data
-results <- data.frame(date = test_data$month, actual = y_test, predicted = future_prediction)
+results <- data.frame(date = test_data$month, actual = y_test, predicted = test_preds)
 
 # Assuming 'results' is your dataframe with date, actual, and predicted values
 ggplot(results, aes(x = date + years(5))) +
@@ -452,4 +456,32 @@ print(paste("Total R-Squared: ", R2(post_2021$predicted, post_2021$actual)))
 
 
 
+####VAR####
 
+train <- monthly_1985 %>% filter(month < as.Date("2019-01-01"))
+train <- as.matrix(train[, -which(names(train) %in% c("month"))])
+var_model <- vars::VAR(train, p=1)
+
+forecasts <- predict(var_model, n.ahead = 60)
+
+# Extract forecast for tenyr_yield
+tenyr_yield_forecast <- forecasts$fcst$tenyr_yield
+
+forecast_dates <- seq.Date(from = as.Date("2019-01-01"), by = "month", length.out = 60)
+forecast_df <- data.frame(month = forecast_dates, predicted = tenyr_yield_forecast[, "fcst"], lower = tenyr_yield_forecast[, "lower"], upper = tenyr_yield_forecast[, "upper"])
+
+combined_df <- monthly_1985 %>% full_join(forecast_df, by = "month")
+
+ggplot(combined_df, aes(x = month)) +
+  geom_line(aes(y = tenyr_yield, color = "Actual")) +
+  geom_line(aes(y = predicted, color = "Predicted")) +
+  geom_line(aes(y = lower, color = "bounds")) + 
+  geom_line(aes(y = upper, color = "bounds")) +
+  labs(title = "Actual vs Predicted Ten-Year Yields",
+       x = "Month",
+       y = "Ten-Year Yield") +
+  scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red", "bounds" = "black")) +
+  theme_minimal()
+
+
+  
