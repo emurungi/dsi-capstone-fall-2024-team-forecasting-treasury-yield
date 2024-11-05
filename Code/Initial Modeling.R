@@ -369,7 +369,7 @@ ggplot(results, aes(x = month)) +
   geom_line(aes(y = actual, color = "Actual")) +
   geom_line(aes(y = predicted, color = "Predicted")) +
   labs(title = "Actual vs Predicted Yields Over Time",
-       x = "Month",
+       x = "Year",
        y = "Yield") +
   scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
   theme_minimal()
@@ -379,15 +379,21 @@ print(paste("Total RMSE: ", RMSE(all_preds, all_actuals)))
 print(paste("Total MAPE: ", MAPE(all_preds, all_actuals) * 100, "%"))
 print(paste("Total R-Squared: ", R2(all_preds, all_actuals)))
 
+post_2021 <- results %>% filter(month < as.Date('2020-01-01'))
+
+print(paste("Total RMSE: ", RMSE(post_2021$predicted, post_2021$actual)))
+print(paste("Total MAPE: ", MAPE(post_2021$predicted, post_2021$actual) * 100, "%"))
+print(paste("Total R-Squared: ", R2(post_2021$predicted, post_2021$actual)))
+
 
 ggplot() +
   geom_line(data = results, aes(x = month, y = predicted, color = "Predicted")) +
   geom_line(data = monthly_yield, aes(x = month, y = tenyr_yield, color = "Actual")) +
-  labs(title = "Actual vs Predicted Yields Over Time",
-       x = "Month",
+  labs(title = "Actual vs Predicted Yields Over Time Using Expanding Window",
+       x = "Year",
        y = "Yield") +
   scale_color_manual(values = c("Predicted" = "red", "Actual" = "black")) +
-  xlim(c(as.Date('1985-01-01'), as.Date('2025-01-01'))) +
+  xlim(c(as.Date('1970-01-01'), as.Date('2025-01-01'))) +
   theme_minimal()
 
 
@@ -436,8 +442,8 @@ results <- data.frame(
 ggplot(results, aes(x = month)) +
   geom_line(aes(y = actual, color = "Actual")) +
   geom_line(aes(y = predicted, color = "Predicted")) +
-  labs(title = "Actual vs Predicted Yields Over Time",
-       x = "Month",
+  labs(title = "Actual vs Predicted Yields Over Time Using Rolling Window",
+       x = "Year",
        y = "Yield") +
   scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
   theme_minimal()
@@ -447,13 +453,21 @@ print(paste("Total RMSE: ", RMSE(all_preds, all_actuals)))
 print(paste("Total MAPE: ", MAPE(all_preds, all_actuals) * 100, "%"))
 print(paste("Total R-Squared: ", R2(all_preds, all_actuals)))
 
-post_2021 <- results %>% filter(month >= as.Date('2021-01-01'))
+post_2021 <- results %>% filter(month < as.Date('2020-01-01'))
 
 print(paste("Total RMSE: ", RMSE(post_2021$predicted, post_2021$actual)))
 print(paste("Total MAPE: ", MAPE(post_2021$predicted, post_2021$actual) * 100, "%"))
 print(paste("Total R-Squared: ", R2(post_2021$predicted, post_2021$actual)))
 
-
+ggplot() +
+  geom_line(data = results, aes(x = month, y = predicted, color = "Predicted")) +
+  geom_line(data = monthly_yield, aes(x = month, y = tenyr_yield, color = "Actual")) +
+  labs(title = "Actual vs Predicted Yields Over Time Using Rolling Window",
+       x = "Year",
+       y = "Yield") +
+  scale_color_manual(values = c("Predicted" = "red", "Actual" = "black")) +
+  xlim(c(as.Date('1970-01-01'), as.Date('2025-01-01'))) +
+  theme_minimal()
 
 
 ####VAR####
@@ -483,5 +497,54 @@ ggplot(combined_df, aes(x = month)) +
   scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red", "bounds" = "black")) +
   theme_minimal()
 
+
+
+library(forecast)
+library(tidyverse)
+library(timetk)
+library(Metrics)
+
+cv_splits <- rolling_origin(data = monthly_1985, initial = 60, assess = 61, cumulative = TRUE)
+
+all_preds <- c()
+all_actuals <- c()
+
+for (split in cv_splits$splits) {
+  train_data <- analysis(split)
+  test_data <- assessment(split)
+  
+  test_data <- tail(test_data, n=1)  # Ensure test data has the last observation
+  
+  y_train <- ts(train_data$tenyr_yield, frequency = 12)
+  fit_arima <- auto.arima(y_train)
+  
+  # Forecast 5 years ahead (5 years x 12 months = 60 months)
+  preds <- forecast(fit_arima, h=60)$mean[60]
+  y_test <- test_data$yield_5yr_ahead
+  
+  all_preds <- c(all_preds, preds)
+  all_actuals <- c(all_actuals, y_test)
+}
+
+results <- data.frame(
+  month = monthly_1985$month[121:418] + years(5),
+  actual = all_actuals,
+  predicted = all_preds
+)
+
+forecast(fit_arima, h=60)$mean[60]
+
+ggplot(results, aes(x = month)) +
+  geom_line(aes(y = actual, color = "Actual")) +
+  geom_line(aes(y = predicted, color = "Predicted")) +
+  labs(title = "Actual vs Predicted Yields Over Time Using Rolling Window",
+       x = "Year",
+       y = "Yield") +
+  scale_color_manual(values = c("Actual" = "blue", "Predicted" = "red")) +
+  theme_minimal()
+
+print(paste("Total RMSE: ", rmse(all_actuals, all_preds)))
+print(paste("Total MAPE: ", mape(all_actuals, all_preds) * 100, "%"))
+print(paste("Total R-Squared: ", R2(all_actuals, all_preds)))
 
   
