@@ -1,0 +1,16 @@
+1. How was the mentor meeting? Was there a good discussion/Did you get your questions answered/requests responded to?
+    This week we mainly discussed some graphics we had in our midterm report. We discussed a graphic that showed the coefficients for each variable from each iteration of our Lasso regression giving some insight into 
+    their importance and were discussing if this aligned with economic theory. We also discussed a plot of our predictions versus the actuals and it sounds like he thinks we should focus on RMSE instead of 
+    R-squared. We also asked the mentor what other models he would recommend but he didn't really provide any insight.
+
+2. What has been your individual contribution to the project this week?
+    This week I created and tested a bayesian structural time series model.
+
+3. What has been the group’s overall status and contributions this week?
+    We discussed our plan on Tuesday to start working on some bayesian models, we want to discuss with the professor what bayesian and other models he'd recommend, and collect the market data from Bloomberg.
+
+4. Any challenges or roadblocks?
+    I believe my partner is still having issues with collecting the Bloomberg data and he thinks due to his account he won't be able to get this data in excel so we'll be asking our mentor if he can get this data for us.
+
+5. Any questions or feedback? 
+    Right now my biggest question is what models you'd recommend testing.
